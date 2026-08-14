@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter test *)",
+      "Bash(flutter devices *)",
+      "Bash(flutter run *)",
+      "Bash(echo \"started in background, pid $!\")",
+      "Read(//tmp/claude/**)",
+      "Bash(tasklist)",
+      "Bash(git mv *)",
+      "Bash(mv lib/widgets/vinted_nav_bar.dart lib/widgets/JaBa_nav_bar.dart)",
+      "Bash(rm lib/widgets/vinted_mark.dart)",
+      "Bash(python -)"
+    ]
+  }
+}
