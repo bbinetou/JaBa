@@ -4,21 +4,23 @@ import 'package:flutter/widgets.dart';
 
 import '../models/models.dart';
 import 'demo_catalog.dart';
+import 'local_store.dart';
 
 /// État applicatif partagé : catalogue, favoris, recherche/filtres, messagerie.
-///
-/// Implémenté avec `ChangeNotifier` + `InheritedNotifier`, tous deux fournis
-/// par Flutter : l'application reste sans dépendance externe (aucun `provider`
-/// ni `riverpod` à installer), tout en étant réellement réactive — un favori
-/// coché dans le feed se reflète immédiatement dans l'onglet Favoris, une
-/// annonce publiée apparaît en tête de liste, un message envoyé remonte la
-/// conversation.
+/// Persisté sur l'appareil via [LocalStore], sous une clé propre à chaque
+/// compte connecté.
 class AppState extends ChangeNotifier {
-  AppState() {
+  AppState(this._store) {
     _listings = DemoData.listings();
     _conversations = DemoData.conversations();
     _favoriteIds = <String>{};
   }
+
+  final LocalStore _store;
+
+  /// Compte actuellement chargé (voir [loadForAccount]) : `null` tant que
+  /// personne n'est connecté, auquel cas rien n'est persisté.
+  String? _accountKey;
 
   late List<Listing> _listings;
   late List<Conversation> _conversations;
@@ -176,6 +178,7 @@ class AppState extends ChangeNotifier {
       messages: const [],
     );
     _conversations = [..._conversations, conversation];
+    _persist();
     // Création pendant un build possible (ouverture depuis la fiche) : on
     // diffère la notification pour ne pas déclencher un setState en plein build.
     _notifyAfterFrame();
@@ -234,6 +237,19 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  void sendSystemMessage(String conversationId, String content) {
+    _appendMessage(
+      conversationId,
+      ChatMessage(
+        id: 's${DateTime.now().microsecondsSinceEpoch}',
+        senderId: 'systeme',
+        type: MessageType.systeme,
+        content: content,
+        timestamp: DateTime.now(),
+      ),
+    );
+  }
+
   void respondToOffer(String conversationId, String messageId, OfferStatus status) {
     final index = _conversations.indexWhere((c) => c.id == conversationId);
     if (index == -1) return;
@@ -251,6 +267,7 @@ class AppState extends ChangeNotifier {
     ));
 
     _conversations[index] = conversation.copyWith(messages: messages);
+    _persist();
     notifyListeners();
   }
 
@@ -261,6 +278,7 @@ class AppState extends ChangeNotifier {
       messages: [..._conversations[index].messages, message],
       unreadCount: 0,
     );
+    _persist();
     notifyListeners();
   }
 
@@ -268,6 +286,7 @@ class AppState extends ChangeNotifier {
 
   void toggleFavorite(String listingId) {
     if (!_favoriteIds.add(listingId)) _favoriteIds.remove(listingId);
+    _persist();
     notifyListeners();
   }
 
@@ -284,11 +303,13 @@ class AppState extends ChangeNotifier {
       ..removeWhere((s) => s.toLowerCase() == trimmed.toLowerCase())
       ..insert(0, trimmed);
     if (_recentSearches.length > 6) _recentSearches.removeLast();
+    _persist();
     notifyListeners();
   }
 
   void clearRecentSearches() {
     _recentSearches.clear();
+    _persist();
     notifyListeners();
   }
 
@@ -346,6 +367,7 @@ class AppState extends ChangeNotifier {
       publishedAt: DateTime.now(),
     );
     _listings = [listing, ..._listings];
+    _persist();
     notifyListeners();
     return listing;
   }
@@ -354,12 +376,14 @@ class AppState extends ChangeNotifier {
     final index = _listings.indexWhere((l) => l.id == listingId);
     if (index == -1) return;
     _listings[index] = _listings[index].copyWith(isSold: sold);
+    _persist();
     notifyListeners();
   }
 
   void deleteListing(String listingId) {
     _listings.removeWhere((l) => l.id == listingId);
     _favoriteIds.remove(listingId);
+    _persist();
     notifyListeners();
   }
 
@@ -386,15 +410,72 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Remet l'état à son point de départ (utilisé à la déconnexion) : les
-  /// annonces publiées et les favoris d'une session ne débordent pas
-  /// sur la suivante.
-  void reset() {
+  // ------------------------------------------------------------ persistance
+
+  static String _listingsKey(String key) => 'app.$key.listings.v1';
+  static String _conversationsKey(String key) => 'app.$key.conversations.v1';
+  static String _favoritesKey(String key) => 'app.$key.favorites.v1';
+  static String _searchesKey(String key) => 'app.$key.searches.v1';
+
+  /// Charge le catalogue/favoris/conversations de ce compte, ou le jeu de
+  /// démonstration lors de sa première connexion.
+  Future<void> loadForAccount(String accountKey) async {
+    _accountKey = accountKey;
+
+    final storedListings = _store.getJson<List<dynamic>>(
+        _listingsKey(accountKey), (j) => j as List<dynamic>);
+    final storedConversations = _store.getJson<List<dynamic>>(
+        _conversationsKey(accountKey), (j) => j as List<dynamic>);
+    final storedFavorites = _store.getJson<List<dynamic>>(
+        _favoritesKey(accountKey), (j) => j as List<dynamic>);
+    final storedSearches = _store.getJson<List<dynamic>>(
+        _searchesKey(accountKey), (j) => j as List<dynamic>);
+
+    _listings = storedListings != null
+        ? storedListings
+            .map((j) => Listing.fromJson(Map<String, dynamic>.from(j as Map)))
+            .toList()
+        : DemoData.listings();
+    _conversations = storedConversations != null
+        ? storedConversations
+            .map((j) =>
+                Conversation.fromJson(Map<String, dynamic>.from(j as Map)))
+            .toList()
+        : DemoData.conversations();
+    _favoriteIds =
+        storedFavorites != null ? storedFavorites.cast<String>().toSet() : {};
+    _recentSearches
+      ..clear()
+      ..addAll(storedSearches?.cast<String>() ?? const ['robe wax', 'thinkpad']);
+
+    _filters = const ListingFilters();
+    notifyListeners();
+  }
+
+  /// Remet l'état au jeu de démonstration (déconnexion).
+  void clearAccountContext() {
+    _accountKey = null;
     _listings = DemoData.listings();
     _conversations = DemoData.conversations();
     _favoriteIds = <String>{};
+    _recentSearches
+      ..clear()
+      ..addAll(['robe wax', 'thinkpad']);
     _filters = const ListingFilters();
     notifyListeners();
+  }
+
+  /// Sauvegarde l'état courant sous la clé du compte connecté. Sans effet
+  /// tant qu'aucun compte n'est chargé (écran de connexion, par exemple).
+  void _persist() {
+    final key = _accountKey;
+    if (key == null) return;
+    _store.setJson(
+        _listingsKey(key), _listings.map((l) => l.toJson()).toList());
+    _store.setJson(_conversationsKey(key),
+        _conversations.map((c) => c.toJson()).toList());
+    _store.setJson(_favoritesKey(key), _favoriteIds.toList());
+    _store.setJson(_searchesKey(key), _recentSearches);
   }
 
   void _notifyAfterFrame() {

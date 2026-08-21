@@ -162,7 +162,7 @@ class _ConversationTile extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            conversation.otherUser.displayName,
+                            conversation.otherUser.publicName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

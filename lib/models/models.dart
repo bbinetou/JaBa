@@ -180,6 +180,16 @@ class UserProfile {
     return (parts.first[0] + parts.last[0]).toUpperCase();
   }
 
+  /// Nom affiché aux autres utilisateurs : prénom + initiale du nom, jamais
+  /// le nom complet.
+  String get publicName {
+    final parts = displayName.trim().split(RegExp(r'\s+'))
+      ..removeWhere((p) => p.isEmpty);
+    if (parts.isEmpty) return 'Membre JaBa';
+    if (parts.length == 1) return parts.first;
+    return '${parts.first} ${parts.last[0].toUpperCase()}.';
+  }
+
   UserProfile copyWith({
     String? displayName,
     String? zone,
@@ -203,6 +213,38 @@ class UserProfile {
       verified: verified,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'displayName': displayName,
+        'photoUrl': photoUrl,
+        'zone': zone,
+        'averageRating': averageRating,
+        'reviewCount': reviewCount,
+        'activeListingsCount': activeListingsCount,
+        'salesCount': salesCount,
+        'memberSince': memberSince.toIso8601String(),
+        'phone': phone,
+        'email': email,
+        'badges': badges,
+        'verified': verified,
+      };
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
+        id: json['id'] as String,
+        displayName: json['displayName'] as String,
+        photoUrl: json['photoUrl'] as String?,
+        zone: json['zone'] as String,
+        averageRating: (json['averageRating'] as num).toDouble(),
+        reviewCount: json['reviewCount'] as int,
+        activeListingsCount: json['activeListingsCount'] as int,
+        salesCount: json['salesCount'] as int? ?? 0,
+        memberSince: DateTime.parse(json['memberSince'] as String),
+        phone: json['phone'] as String?,
+        email: json['email'] as String?,
+        badges: (json['badges'] as List?)?.cast<String>() ?? const [],
+        verified: json['verified'] as bool? ?? false,
+      );
 }
 
 class Listing {
@@ -304,6 +346,48 @@ class Listing {
       brand: brand ?? this.brand,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'sellerId': sellerId,
+        'sellerName': sellerName,
+        'sellerRating': sellerRating,
+        'title': title,
+        'description': description,
+        'category': category.name,
+        'size': size,
+        'condition': condition.name,
+        'price': price,
+        'negotiable': negotiable,
+        'photos': photos,
+        'zone': zone,
+        'distanceKm': distanceKm,
+        'isSold': isSold,
+        'publishedAt': publishedAt.toIso8601String(),
+        'views': views,
+        'brand': brand,
+      };
+
+  factory Listing.fromJson(Map<String, dynamic> json) => Listing(
+        id: json['id'] as String,
+        sellerId: json['sellerId'] as String,
+        sellerName: json['sellerName'] as String,
+        sellerRating: (json['sellerRating'] as num).toDouble(),
+        title: json['title'] as String,
+        description: json['description'] as String,
+        category: ListingCategory.values.byName(json['category'] as String),
+        size: json['size'] as String?,
+        condition: ItemCondition.values.byName(json['condition'] as String),
+        price: json['price'] as int,
+        negotiable: json['negotiable'] as bool,
+        photos: (json['photos'] as List).cast<String>(),
+        zone: json['zone'] as String,
+        distanceKm: (json['distanceKm'] as num).toDouble(),
+        isSold: json['isSold'] as bool? ?? false,
+        publishedAt: DateTime.parse(json['publishedAt'] as String),
+        views: json['views'] as int? ?? 0,
+        brand: json['brand'] as String?,
+      );
 }
 
 /// Sépare les milliers par une espace : 12500 → « 12 500 ».
@@ -487,6 +571,28 @@ class ChatMessage {
       timestamp: timestamp,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'senderId': senderId,
+        'type': type.name,
+        'content': content,
+        'offerAmount': offerAmount,
+        'offerStatus': offerStatus?.name,
+        'timestamp': timestamp.toIso8601String(),
+      };
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
+        id: json['id'] as String,
+        senderId: json['senderId'] as String,
+        type: MessageType.values.byName(json['type'] as String),
+        content: json['content'] as String?,
+        offerAmount: json['offerAmount'] as int?,
+        offerStatus: json['offerStatus'] == null
+            ? null
+            : OfferStatus.values.byName(json['offerStatus'] as String),
+        timestamp: DateTime.parse(json['timestamp'] as String),
+      );
 }
 
 class Conversation {
@@ -532,6 +638,26 @@ class Conversation {
       unreadCount: unreadCount ?? this.unreadCount,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'listingId': listingId,
+        'otherUser': otherUser.toJson(),
+        'messages': messages.map((m) => m.toJson()).toList(),
+        'unreadCount': unreadCount,
+      };
+
+  factory Conversation.fromJson(Map<String, dynamic> json) => Conversation(
+        id: json['id'] as String,
+        listingId: json['listingId'] as String,
+        otherUser: UserProfile.fromJson(
+          Map<String, dynamic>.from(json['otherUser'] as Map),
+        ),
+        messages: (json['messages'] as List)
+            .map((m) => ChatMessage.fromJson(Map<String, dynamic>.from(m as Map)))
+            .toList(),
+        unreadCount: json['unreadCount'] as int? ?? 0,
+      );
 }
 
 class Review {

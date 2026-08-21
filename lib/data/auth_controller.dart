@@ -1,44 +1,60 @@
+import 'dart:convert';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/models.dart';
 import 'countries.dart';
+import 'local_store.dart';
 
-/// Authentification locale de démonstration.
-///
-/// ⚠️ Aucun secret réel ici : les comptes vivent en mémoire (ils disparaissent
-/// donc au redémarrage de l'application) et les mots de passe ne sont pas
-/// hachés. C'est volontaire — l'application tourne sans backend, et le cahier
-/// des charges (section 6.3) prévoit de brancher Firebase Auth par la suite.
-/// Pour la production, remplacer `_accounts` et les méthodes ci-dessous par
-/// `firebase_auth` (`verifyPhoneNumber`, `signInWithCredential`,
-/// `createUserWithEmailAndPassword`, `signInWithEmailAndPassword`) : les
-/// écrans ne dépendent que de cette interface et n'auront pas à changer.
-///
-/// Aucun compte n'est pré-enregistré : il faut créer le sien via l'écran
-/// d'inscription, exactement comme sur une vraie application.
+/// Authentification locale, persistée sur l'appareil via [LocalStore].
+/// Mots de passe jamais stockés en clair (hachage SHA-256, [_hashPassword]).
+/// Aucun compte n'est pré-enregistré.
 enum AuthStatus { checking, signedOut, signedIn }
 
 /// Étapes du parcours téléphone : saisie du numéro puis saisie du code.
 enum PhoneStep { number, code }
 
+/// Empreinte du mot de passe : jamais stocké en clair sur l'appareil.
+String _hashPassword(String password) =>
+    sha256.convert(utf8.encode('jaba::$password')).toString();
+
 class _Account {
   _Account({
-    required this.password,
+    required this.passwordHash,
     required this.profile,
     required this.phone,
   });
 
-  final String password;
+  final String passwordHash;
   final String phone;
   UserProfile profile;
+
+  Map<String, dynamic> toJson() => {
+        'passwordHash': passwordHash,
+        'phone': phone,
+        'profile': profile.toJson(),
+      };
+
+  factory _Account.fromJson(Map<String, dynamic> json) => _Account(
+        passwordHash: json['passwordHash'] as String,
+        phone: json['phone'] as String? ?? '',
+        profile: UserProfile.fromJson(
+          Map<String, dynamic>.from(json['profile'] as Map),
+        ),
+      );
 }
 
 class AuthController extends ChangeNotifier {
-  AuthController() {
+  AuthController(this._store) {
     _restoreSession();
   }
+
+  static const _accountsKey = 'auth.accounts.v1';
+  static const _sessionKey = 'auth.session.v1';
+
+  final LocalStore _store;
 
   /// Durée de validité du code OTP — section 5.1 du cahier des charges.
   static const otpValidity = Duration(minutes: 5);
@@ -61,6 +77,10 @@ class AuthController extends ChangeNotifier {
   DateTime? _otpSentAt;
   int _otpAttempts = 0;
 
+  /// Clé du compte connecté (`email:...` ou `phone:...`), utilisée par
+  /// [AppState] pour isoler le catalogue/favoris/messages de chaque compte.
+  String? _currentAccountKey;
+
   // ---------------------------------------------------------------- lecture
 
   AuthStatus get status => _status;
@@ -72,6 +92,10 @@ class AuthController extends ChangeNotifier {
   Country get pendingCountry => _pendingCountry;
   int get remainingOtpAttempts => _maxOtpAttempts - _otpAttempts;
   bool get hasAccounts => _accounts.isNotEmpty;
+
+  /// Clé stable du compte connecté, utilisée pour isoler ses données dans
+  /// [AppState] (`null` tant que personne n'est connecté).
+  String? get currentAccountKey => _currentAccountKey;
 
   /// Code réellement « envoyé ».
   ///
@@ -197,12 +221,40 @@ class AuthController extends ChangeNotifier {
 
   // ---------------------------------------------------------------- actions
 
+  static String _emailKey(String email) => 'email:${email.trim().toLowerCase()}';
+  static String _phoneKey(String digits) => 'phone:$digits';
+
   Future<void> _restoreSession() async {
+    final stored = _store.getJson<Map<String, dynamic>>(
+      _accountsKey,
+      (decoded) => Map<String, dynamic>.from(decoded as Map),
+    );
+    if (stored != null) {
+      stored.forEach((key, value) {
+        _accounts[key] =
+            _Account.fromJson(Map<String, dynamic>.from(value as Map));
+      });
+    }
+
     // Emplacement du futur `FirebaseAuth.authStateChanges()` : ici, on se
     // contente d'un court délai pour laisser le splash s'afficher.
     await Future<void>.delayed(const Duration(milliseconds: 600));
-    _status = AuthStatus.signedOut;
+
+    final sessionKey = _store.getString(_sessionKey);
+    final account = sessionKey == null ? null : _accounts[sessionKey];
+    if (account != null) {
+      _currentAccountKey = sessionKey;
+      _user = account.profile;
+      _status = AuthStatus.signedIn;
+    } else {
+      _status = AuthStatus.signedOut;
+    }
     notifyListeners();
+  }
+
+  Future<void> _persistAccounts() {
+    final json = {for (final e in _accounts.entries) e.key: e.value.toJson()};
+    return _store.setJson(_accountsKey, json);
   }
 
   void clearError() {
@@ -216,13 +268,15 @@ class AuthController extends ChangeNotifier {
     _begin();
     await Future<void>.delayed(const Duration(milliseconds: 700));
 
-    final account = _accounts[email.trim().toLowerCase()];
+    final key = _emailKey(email);
+    final account = _accounts[key];
     if (account == null) {
       return _fail('Aucun compte associé à cette adresse. Créez-en un.');
     }
-    if (account.password != password) {
+    if (account.passwordHash != _hashPassword(password)) {
       return _fail('Mot de passe incorrect');
     }
+    _currentAccountKey = key;
     return _succeed(account.profile);
   }
 
@@ -272,16 +326,27 @@ class AuthController extends ChangeNotifier {
     }
 
     // Un numéro déjà rattaché à un compte le rouvre ; sinon, le parcours
-    // téléphone crée un profil à la volée.
-    final existing =
-        _accounts.values.where((a) => a.phone == _pendingPhone).toList();
-    final profile = existing.isNotEmpty
-        ? existing.first.profile
-        : _createProfile(
-            name: 'Nouveau membre',
-            phone: formatPhone(_pendingPhone!, _pendingCountry),
-          );
+    // téléphone crée un profil à la volée et l'enregistre pour la prochaine
+    // connexion.
+    final phoneKey = _phoneKey(_pendingPhone!);
+    final existing = _accounts[phoneKey];
+    final UserProfile profile;
+    if (existing != null) {
+      profile = existing.profile;
+    } else {
+      profile = _createProfile(
+        name: 'Nouveau membre',
+        phone: formatPhone(_pendingPhone!, _pendingCountry),
+      );
+      _accounts[phoneKey] = _Account(
+        passwordHash: '',
+        phone: _pendingPhone!,
+        profile: profile,
+      );
+      await _persistAccounts();
+    }
 
+    _currentAccountKey = phoneKey;
     _resetPhoneFlow();
     return _succeed(profile);
   }
@@ -299,7 +364,7 @@ class AuthController extends ChangeNotifier {
     _begin();
     await Future<void>.delayed(const Duration(milliseconds: 900));
 
-    final key = email.trim().toLowerCase();
+    final key = _emailKey(email);
     if (_accounts.containsKey(key)) {
       return _fail('Un compte existe déjà avec cette adresse');
     }
@@ -313,14 +378,16 @@ class AuthController extends ChangeNotifier {
       phone: normalizedPhone.isEmpty
           ? ''
           : formatPhone(normalizedPhone, resolvedCountry),
-      email: key,
+      email: email.trim().toLowerCase(),
       zone: zone,
     );
     _accounts[key] = _Account(
-      password: password,
+      passwordHash: _hashPassword(password),
       phone: normalizedPhone,
       profile: profile,
     );
+    await _persistAccounts();
+    _currentAccountKey = key;
     return _succeed(profile);
   }
 
@@ -352,6 +419,8 @@ class AuthController extends ChangeNotifier {
   void signOut() {
     _user = null;
     _status = AuthStatus.signedOut;
+    _currentAccountKey = null;
+    _store.remove(_sessionKey);
     _resetPhoneFlow();
     _error = null;
     notifyListeners();
@@ -383,6 +452,9 @@ class AuthController extends ChangeNotifier {
     _error = null;
     _user = profile;
     _status = AuthStatus.signedIn;
+    if (_currentAccountKey != null) {
+      _store.setString(_sessionKey, _currentAccountKey!);
+    }
     notifyListeners();
     return true;
   }

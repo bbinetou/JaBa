@@ -1,98 +1,171 @@
-# Vinted.sn — Application mobile Flutter
+# JaBa — Guide de test (authentification → publication d'article)
 
-Bienvenue sur le projet Vinted.sn. Ce document t'explique comment installer ton environnement, lancer l'application, et te repérer dans le code. Un second document, **GUIDE_FLUTTER_DEBUTANT.md**, t'explique en profondeur les notions Flutter utilisées ici — à lire en parallèle si tu débutes.
+JaBa est une marketplace de seconde main (Sénégal). Ce document explique
+comment lancer l'application et tester l'ensemble du parcours, de la
+création de compte jusqu'à la publication d'une annonce, avec le backend
+local actuellement en place.
 
-## 1. Installer Flutter
+## 1. État du backend
 
-Avant de pouvoir exécuter ce projet, il faut installer le SDK Flutter sur ta machine.
+Il n'y a **pas encore de serveur distant** (Firebase arrivera plus tard,
+voir les dépendances commentées dans `pubspec.yaml`). En attendant,
+l'authentification et les données sont **réellement fonctionnelles en
+local**, persistées sur l'appareil via `shared_preferences` :
 
-1. Télécharge le SDK depuis [flutter.dev/docs/get-started/install](https://docs.flutter.dev/get-started/install) en choisissant ton système d'exploitation (Windows, macOS ou Linux).
-2. Décompresse l'archive et ajoute le dossier `flutter/bin` à la variable d'environnement `PATH` de ton système, pour pouvoir taper `flutter` depuis n'importe quel terminal.
-3. Installe un IDE : **VS Code** (léger, recommandé pour débuter) avec l'extension "Flutter", ou **Android Studio** (plus lourd mais inclut l'émulateur Android).
-4. Ouvre un terminal et lance la commande suivante, qui vérifie que tout est correctement installé :
+| Élément | Fichier | Comportement |
+|---|---|---|
+| Comptes & session | [lib/data/auth_controller.dart](lib/data/auth_controller.dart) | Inscription e-mail/mot de passe et téléphone/OTP réelles. Mots de passe hachés (SHA-256), jamais stockés en clair. Aucun compte n'est pré-enregistré — il faut en créer un. |
+| Catalogue, favoris, recherches, conversations | [lib/data/app_state.dart](lib/data/app_state.dart) | Isolés **par compte connecté** : deux comptes sur le même appareil ne voient jamais les annonces ou favoris l'un de l'autre. |
+| Stockage | [lib/data/local_store.dart](lib/data/local_store.dart) | Wrapper `shared_preferences` (JSON), seule classe à changer le jour où un vrai backend est branché. |
 
-```bash
-flutter doctor
-```
+Conséquence : ce que tu crées survit à un redémarrage complet de
+l'application. Pour repartir de zéro, désinstalle l'app (ou vide le
+stockage de l'app sur l'appareil/émulateur).
 
-Cette commande liste ce qui manque (Android SDK, Xcode pour iOS, licences à accepter, etc.) avec des instructions précises pour chaque point rouge. Ne passe pas à la suite tant qu'il reste des erreurs critiques (les avertissements liés à un IDE que tu n'utilises pas ne sont pas bloquants).
-
-## 2. Préparer un appareil pour tester l'application
-
-Tu as trois options, de la plus simple à la plus réaliste :
-
-- **Chrome (le plus rapide pour débuter)** : aucune installation supplémentaire, l'application s'ouvre dans un onglet de navigateur. Certaines fonctionnalités natives (caméra, notifications) ne seront pas testables.
-- **Émulateur Android** : installe Android Studio, ouvre le "Device Manager" et crée un appareil virtuel (Pixel 6 par exemple). C'est l'option la plus proche d'un usage réel.
-- **Ton propre téléphone Android** : active le mode développeur (Paramètres → À propos du téléphone → tape 7 fois sur "Numéro de build"), puis le débogage USB, et connecte le téléphone en USB.
-
-Vérifie qu'un appareil est bien détecté avec :
+## 2. Installer et lancer
 
 ```bash
-flutter devices
-```
-
-## 3. Lancer le projet
-
-Depuis un terminal, place-toi dans le dossier du projet puis installe les dépendances déclarées dans `pubspec.yaml` :
-
-```bash
-cd vinted_flutter
 flutter pub get
-```
-
-Lance ensuite l'application :
-
-```bash
 flutter run
 ```
 
-Si plusieurs appareils sont connectés, Flutter te demandera de choisir lequel utiliser. Une fois l'application démarrée, tu arrives directement sur l'écran de connexion par téléphone.
+Vérifie qu'un appareil est détecté avec `flutter devices`. L'app démarre
+sur un splash puis, selon la session restaurée, sur l'écran de connexion
+ou directement sur le feed.
 
-### Le hot reload, ton meilleur ami
+## 3. Parcours de test — authentification
 
-Pendant que `flutter run` tourne, modifie n'importe quel fichier `.dart`, enregistre-le, puis appuie sur `r` dans le terminal (ou `Ctrl+S` dans VS Code avec l'extension Flutter). L'application se met à jour en une fraction de seconde, sans perdre son état. C'est ce qui rend Flutter particulièrement agréable pour apprendre : tu modifies une couleur, une marge, un texte, et tu vois le résultat immédiatement.
+### 3.1 Inscription e-mail + mot de passe
+1. Écran de connexion → **Créer un compte**.
+2. Renseigne nom, e-mail, téléphone (optionnel selon l'écran), mot de passe
+   (8 caractères min., un indicateur de robustesse s'affiche), confirmation.
+3. Coche les conditions d'utilisation puis valide.
+4. Tu arrives directement sur le feed, connecté.
 
-## 4. Structure du projet
+**À vérifier** :
+- Refaire `flutter run` (ou couper/relancer l'app) → tu retombes
+  directement sur le feed, sans repasser par la connexion (session restaurée).
+- Se déconnecter (Profil → déconnexion) puis se reconnecter avec le même
+  e-mail/mot de passe fonctionne.
+- Se réinscrire avec le **même e-mail** → message « Un compte existe déjà
+  avec cette adresse ».
+- Se connecter avec un mauvais mot de passe → « Mot de passe incorrect ».
+- Se connecter avec un e-mail jamais inscrit → « Aucun compte associé à
+  cette adresse ».
 
+### 3.2 Connexion par téléphone (OTP)
+1. Écran de connexion → onglet/téléphone, sélectionner l'indicatif pays,
+   saisir le numéro.
+2. Un code à 6 chiffres est généré et affiché dans une notification
+   imitant un SMS entrant (il n'y a pas de vraie passerelle SMS).
+3. Saisis ce code sur l'écran suivant.
+
+**À vérifier** :
+- Un code erroné décrémente le compteur d'essais (3 max), affiché à
+  l'écran ; au bout de 3 échecs le parcours revient à la saisie du numéro.
+- Le code expire au bout de 5 minutes (`AuthController.otpValidity`).
+- Un numéro déjà utilisé pour un compte le reconnecte sur le même profil ;
+  un numéro inconnu crée un nouveau profil (« Nouveau membre »).
+
+## 4. Parcours de test — publication d'une annonce
+
+Depuis le feed, bouton central **Publier** (3 étapes) :
+
+1. **Photos** — « Ajouter une photo » ouvre le **vrai** sélecteur de
+   l'appareil (`image_picker`) : appareil photo ou galerie système. Sur
+   Android/iOS, la première utilisation demande la permission caméra/photos
+   (accepte-la). Sur Chrome, la galerie s'ouvre via le sélecteur de fichiers
+   du navigateur. Choisis-en au moins une ; la première photo devient la
+   couverture (appui long sur une vignette pour la changer).
+2. **Détails** — titre (5 car. min.), description (15 car. min.), catégorie,
+   taille (optionnelle), état de l'article.
+3. **Prix & adresse** — prix (FCFA), négociable ou non, puis **Adresse de
+   récupération** : champ texte libre (ex. « Rue 12, Sacré-Cœur, Dakar »),
+   5 caractères min.
+
+Valide **Publier l'annonce** : un `SnackBar` de confirmation apparaît avec
+un bouton « Voir ».
+
+**À vérifier** :
+- L'annonce apparaît immédiatement en tête du feed et dans Profil → Mes
+  annonces, avec la vraie photo importée (pas une image de démo).
+- L'adresse saisie s'affiche sur la fiche de l'annonce et dans le
+  récapitulatif de l'étape 3 pendant la saisie.
+- Publier sans photo, sans titre, ou avec une adresse vide/trop courte
+  bloque l'étape correspondante avec un message d'erreur.
+- Se déconnecter puis se reconnecter sur le **même** compte → l'annonce
+  publiée, photo comprise, est toujours là (persistance par compte — sur
+  mobile/desktop la photo est copiée dans le stockage de l'app ; sur le web
+  elle est conservée encodée, voir limites en fin de document).
+- Créer un **second** compte sur le même appareil → il ne voit pas
+  l'annonce publiée par le premier (isolation des données).
+
+## 5. Parcours de test — achat direct et messagerie
+
+### 5.1 Achat direct
+Sur la fiche d'une annonce qui n'est pas la tienne : bouton **Acheter · prix**
+en haut de la barre d'action, au-dessus de « Faire une offre » / « Contacter ».
+
+1. Appuie sur **Acheter** → une boîte de dialogue demande confirmation.
+2. Confirme : tu es redirigé directement dans la conversation avec le
+   vendeur, qui affiche déjà la confirmation d'achat suivie d'une réponse —
+   c'est la notification immédiate au vendeur, simulée puisqu'il n'y a pas
+   de second appareil connecté sur ce vendeur de démonstration.
+
+**À vérifier** : la conversation créée apparaît aussi dans l'onglet Messages,
+avec le message « 🛒 Achat validé » et la réponse du vendeur.
+
+### 5.2 Chat
+- Envoyer un message déclenche une réponse simulée du vendeur après ~2 s
+  (indicateur « en train d'écrire… »).
+- Icône téléphone dans la barre du chat (visible si le vendeur a un numéro,
+  ce qui est le cas pour tous les vendeurs de démonstration) → ouvre
+  WhatsApp avec un message pré-rempli, pour poursuivre la conversation hors
+  de l'app.
+- Les noms affichés (fiche annonce, en-tête du chat, liste des
+  conversations) sont anonymisés : prénom + initiale (ex. « Fatou N. »),
+  jamais le nom complet.
+
+## 6. Autres points rapides à parcourir
+
+- **Recherche/filtres** (accueil) : la recherche filtre au fil de la
+  frappe ; les filtres (prix, état, distance, tri) se cumulent.
+- **Favoris** : cœur sur une annonce → apparaît dans l'onglet Favoris,
+  survit à un redémarrage.
+
+## 7. Lancer les tests automatisés
+
+```bash
+flutter test
 ```
-vinted_flutter/
-├── pubspec.yaml              → dépendances et métadonnées de l'application
-└── lib/
-    ├── main.dart              → point d'entrée, démarre sur l'écran de connexion
-    ├── theme/
-    │   └── app_theme.dart     → couleurs, typographie, ThemeData centralisé
-    ├── models/
-    │   └── models.dart        → classes Dart représentant les données (Listing, UserProfile...)
-    ├── widgets/
-    │   ├── listing_card.dart      → carte annonce réutilisée dans plusieurs écrans
-    │   ├── vinted_nav_bar.dart    → barre de navigation flottante + bouton "Publier"
-    │   └── vinted_mark.dart       → monogramme et wordmark de la marque
-    └── screens/
-        ├── root_shell.dart            → coquille qui héberge la navigation entre onglets
-        ├── auth/phone_login_screen.dart
-        ├── home/home_screen.dart
-        ├── listing/listing_detail_screen.dart
-        ├── listing/publish_listing_screen.dart
-        ├── messaging/conversations_screen.dart
-        ├── messaging/chat_screen.dart
-        ├── profile/profile_screen.dart
-        └── favorites/favorites_screen.dart
-```
 
-Chaque écran correspond à une fonctionnalité décrite dans le cahier des charges. Le dossier `screens` est organisé par domaine métier (auth, home, listing, messaging, profile, favorites) plutôt que par type de fichier, ce qui est une convention courante en Flutter à mesure qu'un projet grossit.
+`test/widget_test.dart` couvre déjà l'inscription, la validation
+téléphone par pays, l'isolation du catalogue par compte, la publication
+d'annonce, et un parcours d'intégration (inscription → feed → recherche →
+fiche produit).
 
-**Point important sur la navigation** : les écrans ne se contiennent pas navigation les uns les autres tout seuls. C'est `root_shell.dart` qui les assemble derrière une unique barre de navigation et qui décide, quand tu appuies sur un onglet, quel écran afficher — ou, pour le bouton central "+", quel écran ouvrir par-dessus les autres (`Navigator.push`). Si tu ajoutes un nouvel écran de premier niveau plus tard, c'est ce fichier qu'il faudra modifier.
+## 8. Limites actuelles à garder en tête
 
-## 5. Parcourir l'application
+- Pas de vrai envoi de SMS/e-mail : le code OTP est affiché à l'écran.
+- Sur le web, les photos importées sont stockées encodées (base64) dans
+  `localStorage` : quelques photos passent, mais la limite de stockage du
+  navigateur (~5 Mo) peut être atteinte avec beaucoup d'annonces à
+  photos multiples — sur mobile/desktop, les photos sont copiées en fichiers
+  dans le stockage de l'app et n'ont pas cette limite.
+- L'achat direct notifie le vendeur *dans la conversation*, immédiatement :
+  il n'y a pas encore de notification push (nécessiterait un vrai backend,
+  voir ci-dessous).
+- Tout reste local à l'appareil : rien n'est synchronisé entre appareils
+  tant que Firebase n'est pas branché.
 
-Après l'écran de connexion (n'importe quel bouton fonctionne, aucun backend n'est encore branché), tu arrives sur `RootShell`, qui affiche cinq sections accessibles depuis la barre du bas : Marché (accueil), Favoris, Publier (bouton central surélevé, ouvre le formulaire de publication en plein écran), Messages et Profil.
+## 9. Et Firebase ?
 
-Pour explorer directement un écran précis pendant que tu apprends, sans repasser par la connexion à chaque relance, modifie temporairement la ligne `home:` dans `main.dart` :
-
-```dart
-home: const HomeScreen(), // au lieu de PhoneLoginScreen()
-```
-
-N'oublie pas d'importer l'écran correspondant en haut du fichier.
-
-Pour la suite de ton apprentissage, ouvre **GUIDE_FLUTTER_DEBUTANT.md** : il reprend les notions clés de Flutter une par une, en s'appuyant directement sur le code de ce projet.
+Le code est déjà structuré pour cette bascule : `LocalStore` est le seul
+point qui connaît `shared_preferences`, et `AuthController`/`AppState`
+n'exposent que des méthodes métier — remplacer le stockage par Firestore/
+Firebase Auth ne change aucun écran. Ça vaut le coup dès que tu veux de
+vraies notifications push (achat, message reçu) ou un compte utilisable sur
+plusieurs appareils ; pour rester uniquement local (tests sur un seul
+appareil, pas de notifications), le backend actuel suffit. La bascule
+demande un projet Firebase de ton côté (console Firebase + `flutterfire
+configure`) : dis-le si tu veux qu'on s'y mette.

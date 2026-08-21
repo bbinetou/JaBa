@@ -3,18 +3,13 @@ import 'package:flutter/services.dart';
 
 import '../../data/app_state.dart';
 import '../../data/auth_controller.dart';
-import '../../data/demo_catalog.dart';
 import '../../models/models.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../../widgets/photo_picker_sheet.dart';
 import 'listing_detail_screen.dart';
 
-/// Parcours de publication en 3 étapes courtes (photos → détails → prix & zone),
-/// pensé pour être complété en moins de deux minutes — section 5.3.
-///
-/// À la validation, l'annonce est réellement créée dans [AppState] : elle
-/// apparaît aussitôt en tête du feed et dans « Mes annonces ».
+/// Parcours de publication en 3 étapes : photos, détails, prix & adresse.
 class PublishListingScreen extends StatefulWidget {
   const PublishListingScreen({super.key});
 
@@ -35,11 +30,11 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
   final _descriptionController = TextEditingController();
   final _sizeController = TextEditingController();
   final _priceController = TextEditingController();
+  final _addressController = TextEditingController();
 
   ListingCategory _category = ListingCategory.femme;
   ItemCondition _condition = ItemCondition.tresBonEtat;
   bool _negotiable = true;
-  String _zone = DemoData.zones.first;
   bool _publishing = false;
 
   @override
@@ -48,14 +43,13 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     _descriptionController.dispose();
     _sizeController.dispose();
     _priceController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
-  /// Ouvre le parcours d'ajout de photo (appareil ou galerie).
   Future<void> _addPhotos() async {
     final picked = await PhotoPicker.show(
       context,
-      alreadySelected: _selectedPhotos,
       remainingSlots: _maxPhotos - _selectedPhotos.length,
     );
     if (picked == null || picked.isEmpty || !mounted) return;
@@ -66,7 +60,6 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     setState(() => _selectedPhotos.remove(path));
   }
 
-  /// Promeut une photo en couverture : c'est elle qui s'affichera dans le feed.
   void _makeCover(String path) {
     setState(() {
       _selectedPhotos.remove(path);
@@ -74,7 +67,6 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     });
   }
 
-  /// Chaque étape valide ses champs avant de laisser passer à la suivante.
   bool _validateCurrentStep() {
     switch (_step) {
       case 0:
@@ -138,7 +130,7 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
       price: int.parse(_priceController.text),
       negotiable: _negotiable,
       photos: List.of(_selectedPhotos),
-      zone: _zone,
+      zone: _addressController.text.trim(),
       author: user,
     );
 
@@ -257,11 +249,6 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     }
   }
 
-  /// Étape 1 — ajout des photos de l'article.
-  ///
-  /// Chaque photo ajoutée est une vue de l'objet : la première sert de
-  /// couverture dans le feed, les suivantes alimentent le carrousel de la
-  /// fiche produit.
   Widget _buildPhotosStep() {
     final canAddMore = _selectedPhotos.length < _maxPhotos;
 
@@ -269,14 +256,7 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
       children: [
         const Text('Photos de l\'article',
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        const Text(
-          'Ajoutez jusqu\'à 5 vues du même objet (face, dos, détail…). '
-          'La première sera la couverture de l\'annonce.',
-          style: TextStyle(
-              fontSize: 12, color: AppColors.textSecondary, height: 1.45),
-        ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
         if (_selectedPhotos.isEmpty)
           _buildEmptyDropZone()
         else ...[
@@ -311,7 +291,6 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     );
   }
 
-  /// Zone d'ajout affichée tant qu'aucune photo n'a été choisie.
   Widget _buildEmptyDropZone() {
     return GestureDetector(
       onTap: _addPhotos,
@@ -354,7 +333,6 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     );
   }
 
-  /// Grand aperçu de la photo de couverture.
   Widget _buildCoverPreview() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -392,7 +370,6 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     );
   }
 
-  /// Bande de vignettes : retrait au bouton, couverture par appui long.
   Widget _buildThumbnails(bool canAddMore) {
     return SizedBox(
       height: 74,
@@ -473,7 +450,6 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     );
   }
 
-  /// Étape 2 — informations descriptives.
   Widget _buildDetailsStep() {
     return Form(
       key: _detailsKey,
@@ -569,7 +545,6 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     );
   }
 
-  /// Étape 3 — prix, négociabilité et zone de remise.
   Widget _buildPriceStep() {
     return Form(
       key: _priceKey,
@@ -625,37 +600,21 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            initialValue: _zone,
+          TextFormField(
+            controller: _addressController,
+            textInputAction: TextInputAction.done,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => setState(() {}),
+            validator: (value) {
+              final v = (value ?? '').trim();
+              if (v.isEmpty) return 'Indiquez une adresse de récupération';
+              if (v.length < 5) return 'Adresse trop courte';
+              return null;
+            },
             decoration: const InputDecoration(
-              labelText: 'Zone de remise en main propre',
+              labelText: 'Adresse de récupération',
+              hintText: 'Rue, quartier, ville…',
               prefixIcon: Icon(Icons.place_outlined, size: 18),
-            ),
-            items: DemoData.zones
-                .map((z) => DropdownMenuItem(value: z, child: Text(z)))
-                .toList(),
-            onChanged: (value) => setState(() => _zone = value ?? _zone),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(11),
-            decoration: BoxDecoration(
-              color: AppColors.accentLight,
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline, size: 16, color: AppColors.accent),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'L\'adresse exacte n\'est jamais demandée : seule la zone '
-                    'est visible avant le rendez-vous.',
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.textPrimary, height: 1.4),
-                  ),
-                ),
-              ],
             ),
           ),
           const SizedBox(height: 18),
@@ -665,8 +624,6 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
     );
   }
 
-  /// Récapitulatif avant publication : l'utilisateur voit ce qu'il s'apprête
-  /// à mettre en ligne sans avoir à revenir en arrière.
   Widget _buildRecap() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -707,7 +664,10 @@ class _PublishListingScreenState extends State<PublishListingScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${_selectedPhotos.length} photo(s) · $_zone',
+                  '${_selectedPhotos.length} photo(s) · '
+                  '${_addressController.text.trim().isEmpty ? 'Adresse à renseigner' : _addressController.text.trim()}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                 ),
               ],

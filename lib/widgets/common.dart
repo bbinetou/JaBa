@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
+import '../data/photo_platform.dart';
 import '../theme/app_theme.dart';
 
 /// Avatar à initiales : aucune photo de profil n'existe dans les assets, on
@@ -227,8 +231,8 @@ class EmptyState extends StatelessWidget {
   }
 }
 
-/// Photo d'annonce chargée depuis les assets, avec repli visuel si le fichier
-/// venait à manquer (l'application ne doit jamais afficher une croix rouge).
+/// Photo d'annonce : asset embarqué, photo importée (fichier local ou data
+/// URI sur le web), avec repli visuel si la source venait à manquer.
 class ListingPhoto extends StatelessWidget {
   const ListingPhoto({
     super.key,
@@ -243,22 +247,55 @@ class ListingPhoto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (path == null || path!.isEmpty) return const _PhotoFallback();
-    return Image.asset(
-      path!,
+    final p = path;
+    if (p == null || p.isEmpty) return const _PhotoFallback();
+
+    if (p.startsWith('data:')) {
+      final bytes = _decodeDataUri(p);
+      if (bytes == null) return const _PhotoFallback();
+      return Image.memory(
+        bytes,
+        fit: fit,
+        alignment: alignment,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => const _PhotoFallback(),
+      );
+    }
+
+    if (p.startsWith('assets/')) {
+      return Image.asset(
+        p,
+        fit: fit,
+        alignment: alignment,
+        errorBuilder: (_, __, ___) => const _PhotoFallback(),
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded) return child;
+          return AnimatedOpacity(
+            opacity: frame == null ? 0 : 1,
+            duration: AppMotion.medium,
+            curve: Curves.easeOut,
+            child: child,
+          );
+        },
+      );
+    }
+
+    return buildFilePhoto(
+      p,
       fit: fit,
       alignment: alignment,
       errorBuilder: (_, __, ___) => const _PhotoFallback(),
-      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-        if (wasSynchronouslyLoaded) return child;
-        return AnimatedOpacity(
-          opacity: frame == null ? 0 : 1,
-          duration: AppMotion.medium,
-          curve: Curves.easeOut,
-          child: child,
-        );
-      },
     );
+  }
+}
+
+Uint8List? _decodeDataUri(String uri) {
+  final comma = uri.indexOf(',');
+  if (comma == -1) return null;
+  try {
+    return base64Decode(uri.substring(comma + 1));
+  } catch (_) {
+    return null;
   }
 }
 

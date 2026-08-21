@@ -9,12 +9,8 @@ import '../../widgets/common.dart';
 import '../../widgets/listing_card.dart';
 import '../messaging/chat_screen.dart';
 
-/// Fiche annonce détaillée : carrousel photo, prix, état, profil vendeur avec
-/// note de fiabilité, actions « Faire une offre » / « Contacter » — section 5.5.
-///
-/// L'annonce est relue depuis [AppState] à chaque build (et non reçue figée en
-/// paramètre) : le cœur, le compteur de vues ou le statut « vendu » restent
-/// synchronisés avec le reste de l'application.
+/// Fiche annonce détaillée : carrousel photo, prix, état, profil vendeur,
+/// actions « Acheter » / « Faire une offre » / « Contacter ».
 class ListingDetailScreen extends StatefulWidget {
   const ListingDetailScreen({
     super.key,
@@ -142,8 +138,6 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                   _SellerCard(seller: seller, isMine: isMine),
                   const SizedBox(height: 14),
                   _buildLocationCard(listing),
-                  const SizedBox(height: 10),
-                  _buildSafetyNotice(),
                 ],
               ),
             ),
@@ -325,11 +319,6 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                   ),
                 ),
               ),
-            const Positioned(
-              left: 14,
-              bottom: 14,
-              child: _ZoomHint(),
-            ),
           ],
         ),
       ),
@@ -518,7 +507,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Remise en main propre',
+                  'Adresse de récupération',
                   style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
@@ -526,34 +515,10 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Zone ${listing.zone} · à convenir avec le vendeur',
+                  listing.zone,
                   style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSafetyNotice() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.shield_outlined, size: 18, color: AppColors.primary),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Privilégiez un lieu public pour la remise et vérifiez l\'article '
-              'avant de payer. Ne communiquez jamais vos codes personnels.',
-              style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.45),
             ),
           ),
         ],
@@ -581,59 +546,119 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
         border: const Border(top: BorderSide(color: AppColors.border)),
         boxShadow: AppShadows.raised,
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (isMine) ...[
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => state.markAsSold(listing.id, sold: !listing.isSold),
-                icon: Icon(
-                  listing.isSold ? Icons.undo : Icons.check_circle_outline,
-                  size: 17,
+          if (isMine)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        state.markAsSold(listing.id, sold: !listing.isSold),
+                    icon: Icon(
+                      listing.isSold ? Icons.undo : Icons.check_circle_outline,
+                      size: 17,
+                    ),
+                    label: Text(listing.isSold ? 'Remettre en vente' : 'Marquer vendu'),
+                  ),
                 ),
-                label: Text(listing.isSold ? 'Remettre en vente' : 'Marquer vendu'),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _confirmDelete(context, listing, state),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+                    icon: const Icon(Icons.delete_outline, size: 17),
+                    label: const Text('Supprimer'),
+                  ),
+                ),
+              ],
+            )
+          else if (listing.isSold)
+            const Center(
+              child: Text(
+                'Cet article a déjà été vendu',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
+            )
+          else ...[
+            SizedBox(
+              width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => _confirmDelete(context, listing, state),
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-                icon: const Icon(Icons.delete_outline, size: 17),
-                label: const Text('Supprimer'),
+                onPressed: () => _buyNow(context, listing, state),
+                icon: const Icon(Icons.shopping_bag_outlined, size: 17),
+                label: Text('Acheter · ${listing.formattedPrice}'),
               ),
             ),
-          ] else if (listing.isSold) ...[
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Cet article a déjà été vendu',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (listing.negotiable) ...[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _openChat(context, listing, state, offer: true),
+                      child: const Text('Faire une offre'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openChat(context, listing, state, offer: false),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                    label: const Text('Contacter'),
+                  ),
                 ),
-              ),
-            ),
-          ] else ...[
-            if (listing.negotiable) ...[
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _openChat(context, listing, state, offer: true),
-                  child: const Text('Faire une offre'),
-                ),
-              ),
-              const SizedBox(width: 10),
-            ],
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () => _openChat(context, listing, state, offer: false),
-                icon: const Icon(Icons.chat_bubble_outline, size: 17),
-                label: const Text('Contacter'),
-              ),
+              ],
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// Achat direct, sans passer par la négociation : le vendeur est notifié
+  /// immédiatement dans la conversation, qui s'ouvre aussitôt.
+  Future<void> _buyNow(BuildContext context, Listing listing, AppState state) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirmer l\'achat'),
+        content: Text(
+          'Vous validez l\'achat de « ${listing.title} » au prix de '
+          '${listing.formattedPrice}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final conversation = state.conversationForListing(listing);
+    state.sendSystemMessage(
+      conversation.id,
+      '🛒 Achat validé — ${listing.formattedPrice}',
+    );
+    state.receiveMessage(
+      conversation.id,
+      conversation.otherUser.id,
+      'Merci pour votre achat ! Je vous recontacte tout de suite pour organiser la remise.',
+    );
+    if (!context.mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(conversationId: conversation.id),
       ),
     );
   }
@@ -754,30 +779,6 @@ class _CircleAction extends StatelessWidget {
   }
 }
 
-class _ZoomHint extends StatelessWidget {
-  const _ZoomHint();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.zoom_in, size: 13, color: Colors.white),
-          SizedBox(width: 4),
-          Text('Appuyez pour agrandir',
-              style: TextStyle(color: Colors.white, fontSize: 10.5)),
-        ],
-      ),
-    );
-  }
-}
-
 class _Stat extends StatelessWidget {
   const _Stat({required this.icon, required this.value, required this.label});
 
@@ -845,7 +846,7 @@ class _SellerCard extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        isMine ? 'Vous' : seller.displayName,
+                        isMine ? 'Vous' : seller.publicName,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 13.5),

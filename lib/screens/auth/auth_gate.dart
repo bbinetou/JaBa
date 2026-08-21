@@ -101,8 +101,11 @@ class _SplashScreenState extends State<_SplashScreen>
   }
 }
 
-/// Écoute la déconnexion pour remettre le catalogue à zéro : sans cela, les
-/// favoris et conversations d'une session survivraient à la suivante.
+/// Synchronise le catalogue applicatif avec la session : charge les
+/// données propres au compte qui vient de se connecter (manuellement ou par
+/// restauration au démarrage), et les remet au jeu de démonstration à la
+/// déconnexion, pour qu'un compte ne voie jamais les favoris/annonces d'un
+/// autre utilisé sur le même appareil.
 class SessionResetListener extends StatefulWidget {
   const SessionResetListener({super.key, required this.child});
 
@@ -118,10 +121,21 @@ class _SessionResetListenerState extends State<SessionResetListener> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final status = AuthScope.of(context).status;
-    if (_previous == AuthStatus.signedIn && status == AuthStatus.signedOut) {
+    final auth = AuthScope.of(context);
+    final status = auth.status;
+
+    if (_previous != AuthStatus.signedIn && status == AuthStatus.signedIn) {
+      final accountKey = auth.currentAccountKey;
+      if (accountKey != null) {
+        final state = AppScope.read(context);
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => state.loadForAccount(accountKey));
+      }
+    } else if (_previous == AuthStatus.signedIn &&
+        status == AuthStatus.signedOut) {
       final state = AppScope.read(context);
-      WidgetsBinding.instance.addPostFrameCallback((_) => state.reset());
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => state.clearAccountContext());
     }
     _previous = status;
   }

@@ -5,17 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/app_state.dart';
+import '../../data/whatsapp_link.dart';
 import '../../models/models.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../listing/listing_detail_screen.dart';
 
 /// Conversation rattachée à une annonce, avec négociation intégrée sous forme
-/// d'offre structurée (accepter / refuser / contre-offre) — section 5.7,
-/// la fonctionnalité la plus différenciante de JaBa.
-///
-/// Les messages vivent dans [AppState] : ils survivent à la fermeture de
-/// l'écran et remontent la conversation dans la liste des messages.
+/// d'offre structurée (accepter / refuser / contre-offre).
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
@@ -89,9 +86,9 @@ class _ChatScreenState extends State<ChatScreen> {
     const replies = [
       'Oui bien sûr, quand souhaitez-vous passer ?',
       'C\'est encore disponible 🙂',
-      'Je peux vous envoyer d\'autres photos si besoin.',
+      'Merci pour votre message, je vous réponds dès que possible.',
       'On peut se retrouver en fin de journée si ça vous va.',
-      'Merci pour votre message, je regarde ça tout de suite.',
+      'Merci, je regarde ça et je reviens vers vous.',
     ];
 
     _replyTimer?.cancel();
@@ -130,7 +127,6 @@ class _ChatScreenState extends State<ChatScreen> {
           builder: (context, setSheetState) {
             final amount = int.tryParse(offerController.text) ?? 0;
             final price = listing?.price ?? 0;
-            final tooLow = amount > 0 && price > 0 && amount < price * 0.5;
 
             return Column(
               mainAxisSize: MainAxisSize.min,
@@ -184,21 +180,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         },
                       );
                     }).toList(),
-                  ),
-                ],
-                if (tooLow) ...[
-                  const SizedBox(height: 12),
-                  const Row(
-                    children: [
-                      Icon(Icons.info_outline, size: 15, color: AppColors.warning),
-                      SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Offre très basse : elle a peu de chances d\'être acceptée.',
-                          style: TextStyle(fontSize: 11.5, color: AppColors.warning),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
                 const SizedBox(height: 20),
@@ -261,7 +242,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    conversation.otherUser.displayName,
+                    conversation.otherUser.publicName,
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                   AnimatedSwitcher(
@@ -280,6 +261,20 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+        actions: [
+          if ((conversation.otherUser.phone ?? '').isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.call_outlined),
+              tooltip: 'Continuer sur WhatsApp',
+              onPressed: () => openWhatsApp(
+                conversation.otherUser.phone!,
+                message: listing == null
+                    ? 'Bonjour, je vous contacte depuis JaBa.'
+                    : 'Bonjour, je vous contacte depuis JaBa au sujet de '
+                        '« ${listing.title} ».',
+              ),
+            ),
+        ],
       ),
       body: Column(
         children: [

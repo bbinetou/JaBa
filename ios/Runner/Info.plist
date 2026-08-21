@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>JaBa a besoin de l'appareil photo pour ajouter des photos à vos annonces.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>JaBa a besoin d'accéder à vos photos pour illustrer vos annonces.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

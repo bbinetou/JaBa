@@ -10,12 +10,16 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
-  # go_router: ^14.0.0          # navigation déclarative (section 6.2)
-  # firebase_core: ^3.0.0       # backend Firebase (section 6.3)
+  shared_preferences: ^2.3.3   # persistance locale (comptes, catalogue, messages)
+  crypto: ^3.0.5               # hachage des mots de passe stockés localement
+  image_picker: ^1.2.3         # vraie galerie / appareil photo
+  path_provider: ^2.1.6        # copie permanente des photos importées
+  url_launcher: ^6.3.2         # ouverture de WhatsApp depuis le chat
+  # go_router: ^14.0.0
+  # firebase_core: ^3.0.0
   # firebase_auth: ^5.0.0
   # cloud_firestore: ^5.0.0
   # firebase_storage: ^12.0.0
-  # google_maps_flutter: ^2.6.0 # remise en main propre (section 6.8)
 
 dev_dependencies:
   flutter_test:

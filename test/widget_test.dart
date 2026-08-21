@@ -8,11 +8,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:JaBa/data/app_state.dart';
 import 'package:JaBa/data/auth_controller.dart';
 import 'package:JaBa/data/countries.dart';
 import 'package:JaBa/data/demo_catalog.dart';
+import 'package:JaBa/data/local_store.dart';
 import 'package:JaBa/main.dart';
 import 'package:JaBa/models/models.dart';
 
@@ -22,10 +24,17 @@ const _email = 'awa.diop@exemple.sn';
 const _password = 'motdepasse1';
 const _phone = '771234567';
 
+/// Un [LocalStore] vierge par test : aucune donnée persistée d'un test ne
+/// doit fuiter vers le suivant.
+Future<LocalStore> _freshStore() async {
+  SharedPreferences.setMockInitialValues({});
+  return LocalStore.open();
+}
+
 void main() {
   group('AuthController', () {
     test('démarre déconnecté, sans aucun compte pré-enregistré', () async {
-      final auth = AuthController();
+      final auth = AuthController(await _freshStore());
       expect(auth.status, AuthStatus.checking);
       await Future<void>.delayed(const Duration(milliseconds: 700));
       expect(auth.status, AuthStatus.signedOut);
@@ -33,7 +42,7 @@ void main() {
     });
 
     test('se connecter sans compte existant échoue', () async {
-      final auth = AuthController();
+      final auth = AuthController(await _freshStore());
       final ok = await auth.signInWithEmail(_email, _password);
       expect(ok, isFalse);
       expect(auth.status, AuthStatus.signedOut);
@@ -41,7 +50,7 @@ void main() {
     });
 
     test('le compte créé permet ensuite de se reconnecter', () async {
-      final auth = AuthController();
+      final auth = AuthController(await _freshStore());
 
       final created = await auth.signUp(
         name: _name,
@@ -64,7 +73,7 @@ void main() {
     });
 
     test('un mauvais mot de passe est refusé avec un message', () async {
-      final auth = AuthController();
+      final auth = AuthController(await _freshStore());
       await auth.signUp(
         name: _name,
         email: _email,
@@ -78,7 +87,7 @@ void main() {
     });
 
     test('une adresse déjà utilisée est refusée', () async {
-      final auth = AuthController();
+      final auth = AuthController(await _freshStore());
       await auth.signUp(
         name: _name, email: _email, password: _password, zone: 'Yoff');
       auth.signOut();
@@ -90,7 +99,7 @@ void main() {
     });
 
     test('le parcours téléphone envoie un code puis le vérifie', () async {
-      final auth = AuthController();
+      final auth = AuthController(await _freshStore());
 
       // Numéro invalide : on reste à l'étape de saisie.
       expect(await auth.requestOtp('12345', Countries.senegal), isFalse);
@@ -212,8 +221,9 @@ void main() {
   });
 
   group('AppState', () {
-    test('démarre sur le catalogue, sans favori ni annonce personnelle', () {
-      final state = AppState();
+    test('démarre sur le catalogue, sans favori ni annonce personnelle',
+        () async {
+      final state = AppState(await _freshStore());
       expect(state.allListings.length, 5);
       expect(state.favorites, isEmpty);
       expect(state.myListings, isEmpty);
@@ -221,16 +231,16 @@ void main() {
       expect(state.availableCategories.length, 5);
     });
 
-    test('la recherche filtre sur plusieurs mots', () {
-      final state = AppState()..setQuery('robe wax');
+    test('la recherche filtre sur plusieurs mots', () async {
+      final state = AppState(await _freshStore())..setQuery('robe wax');
       expect(state.visibleListings.length, 1);
 
       state.setQuery('zzzz introuvable');
       expect(state.visibleListings, isEmpty);
     });
 
-    test('les filtres se cumulent et le tri s\'applique', () {
-      final state = AppState();
+    test('les filtres se cumulent et le tri s\'applique', () async {
+      final state = AppState(await _freshStore());
       state.applyFilters(const ListingFilters(
         category: ListingCategory.electronique,
         sort: SortOption.priceAsc,
@@ -247,8 +257,9 @@ void main() {
       }
     });
 
-    test('countFor annonce le résultat sans modifier l\'état courant', () {
-      final state = AppState();
+    test('countFor annonce le résultat sans modifier l\'état courant',
+        () async {
+      final state = AppState(await _freshStore());
       final before = state.visibleListings.length;
       final count = state.countFor(
         const ListingFilters(category: ListingCategory.femme),
@@ -257,8 +268,8 @@ void main() {
       expect(state.visibleListings.length, before);
     });
 
-    test('un favori bascule et notifie ses auditeurs', () {
-      final state = AppState();
+    test('un favori bascule et notifie ses auditeurs', () async {
+      final state = AppState(await _freshStore());
       var notified = 0;
       state.addListener(() => notified++);
 
@@ -270,8 +281,8 @@ void main() {
       expect(state.favorites.single.id, id);
     });
 
-    test('publier ajoute réellement l\'annonce en tête du feed', () {
-      final state = AppState();
+    test('publier ajoute réellement l\'annonce en tête du feed', () async {
+      final state = AppState(await _freshStore());
       final before = state.allListings.length;
       final author = UserProfile(
         id: 'me',
@@ -303,8 +314,8 @@ void main() {
       expect(state.sellerOf(listing).displayName, _name);
     });
 
-    test('un message envoyé remonte la conversation', () {
-      final state = AppState();
+    test('un message envoyé remonte la conversation', () async {
+      final state = AppState(await _freshStore());
       final conversation = state.conversations.last;
       final before = conversation.messages.length;
 
@@ -316,8 +327,8 @@ void main() {
       expect(state.conversations.first.id, conversation.id);
     });
 
-    test('répondre à une offre met son statut à jour', () {
-      final state = AppState();
+    test('répondre à une offre met son statut à jour', () async {
+      final state = AppState(await _freshStore());
       final conversation = state.conversations.firstWhere(
         (c) => c.messages.any((m) => m.type == MessageType.offre),
       );
@@ -348,7 +359,7 @@ void main() {
     /// Démarre l'application et attend l'écran de connexion.
     Future<void> launch(WidgetTester tester) async {
       usePhoneViewport(tester);
-      await tester.pumpWidget(const JaBaApp());
+      await tester.pumpWidget(JaBaApp(store: await _freshStore()));
       await tester.pump(const Duration(milliseconds: 700));
       await tester.pumpAndSettle();
     }

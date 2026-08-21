@@ -87,6 +87,7 @@ class DemoData {
     memberSince: DateTime(2025, 11, 4),
     badges: const ['Super vendeuse', 'Réponses rapides'],
     verified: true,
+    phone: '+221 77 111 22 33',
   );
 
   static final UserProfile moussa = UserProfile(
@@ -99,6 +100,7 @@ class DemoData {
     salesCount: 21,
     memberSince: DateTime(2026, 1, 22),
     verified: true,
+    phone: '+221 78 222 33 44',
   );
 
   static final UserProfile cheikh = UserProfile(
@@ -112,6 +114,7 @@ class DemoData {
     memberSince: DateTime(2025, 9, 15),
     badges: const ['Réponses rapides'],
     verified: true,
+    phone: '+221 76 333 44 55',
   );
 
   static final UserProfile awa = UserProfile(
@@ -125,6 +128,7 @@ class DemoData {
     memberSince: DateTime(2025, 8, 9),
     badges: const ['Super vendeuse'],
     verified: true,
+    phone: '+221 70 444 55 66',
   );
 
   static final UserProfile ndeye = UserProfile(
@@ -136,6 +140,7 @@ class DemoData {
     activeListingsCount: 1,
     salesCount: 17,
     memberSince: DateTime(2026, 2, 3),
+    phone: '+221 77 555 66 77',
   );
 
   static final List<UserProfile> sellers = [fatou, moussa, cheikh, awa, ndeye];
@@ -172,7 +177,7 @@ class DemoData {
           category: ListingCategory.femme,
           size: 'M',
           condition: ItemCondition.tresBonEtat,
-          price: 12500,
+          price: 6500,
           negotiable: true,
           photos: Assets.robeWax,
           zone: fatou.zone,
@@ -219,7 +224,7 @@ class DemoData {
           category: ListingCategory.chaussures,
           size: '42',
           condition: ItemCondition.bonEtat,
-          price: 18000,
+          price: 8000,
           negotiable: true,
           photos: Assets.chaussures,
           zone: ndeye.zone,
@@ -242,7 +247,7 @@ class DemoData {
               "d'authenticité.",
           category: ListingCategory.accessoires,
           condition: ItemCondition.bonEtat,
-          price: 9500,
+          price: 1500,
           negotiable: false,
           photos: Assets.sac,
           zone: awa.zone,
@@ -265,7 +270,7 @@ class DemoData {
               "quelques micro-rayures sur le capot, rien sur l'écran.",
           category: ListingCategory.electronique,
           condition: ItemCondition.tresBonEtat,
-          price: 285000,
+          price: 185000,
           negotiable: true,
           photos: Assets.thinkpad,
           zone: moussa.zone,
