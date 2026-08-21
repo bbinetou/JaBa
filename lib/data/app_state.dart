@@ -418,7 +418,9 @@ class AppState extends ChangeNotifier {
   static String _searchesKey(String key) => 'app.$key.searches.v1';
 
   /// Charge le catalogue/favoris/conversations de ce compte, ou le jeu de
-  /// démonstration lors de sa première connexion.
+  /// démonstration lors de sa première connexion. Les conversations ne sont
+  /// jamais pré-remplies : elles n'apparaissent que pour les annonces
+  /// publiées ou contactées par ce compte.
   Future<void> loadForAccount(String accountKey) async {
     _accountKey = accountKey;
 
@@ -441,7 +443,7 @@ class AppState extends ChangeNotifier {
             .map((j) =>
                 Conversation.fromJson(Map<String, dynamic>.from(j as Map)))
             .toList()
-        : DemoData.conversations();
+        : <Conversation>[];
     _favoriteIds =
         storedFavorites != null ? storedFavorites.cast<String>().toSet() : {};
     _recentSearches
@@ -456,7 +458,7 @@ class AppState extends ChangeNotifier {
   void clearAccountContext() {
     _accountKey = null;
     _listings = DemoData.listings();
-    _conversations = DemoData.conversations();
+    _conversations = <Conversation>[];
     _favoriteIds = <String>{};
     _recentSearches
       ..clear()

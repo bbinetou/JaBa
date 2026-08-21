@@ -203,7 +203,7 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
         _CircleAction(
           icon: isFavorite ? Icons.favorite : Icons.favorite_border,
           color: isFavorite ? AppColors.accent : null,
-          onTap: () => state.toggleFavorite(listing.id),
+          onTap: () => _toggleFavorite(listing, isFavorite, state),
         ),
         _CircleAction(
           icon: Icons.flag_outlined,
@@ -618,6 +618,18 @@ class _ListingDetailScreenState extends State<ListingDetailScreen> {
         ],
       ),
     );
+  }
+
+  void _toggleFavorite(Listing listing, bool wasFavorite, AppState state) {
+    state.toggleFavorite(listing.id);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        duration: const Duration(seconds: 2),
+        content: Text(
+          wasFavorite ? 'Retiré de vos favoris' : 'Ajouté à vos favoris',
+        ),
+      ));
   }
 
   /// Achat direct, sans passer par la négociation : le vendeur est notifié

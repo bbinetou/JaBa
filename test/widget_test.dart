@@ -118,8 +118,14 @@ void main() {
           isFalse);
       expect(auth.remainingOtpAttempts, 2);
 
+      // Numéro inconnu : le code valide demande le nom avant de connecter.
       expect(await auth.verifyOtp(code), isTrue);
+      expect(auth.phoneStep, PhoneStep.name);
+      expect(auth.status, AuthStatus.signedOut);
+
+      expect(await auth.completePhoneSignup(_name), isTrue);
       expect(auth.status, AuthStatus.signedIn);
+      expect(auth.user?.displayName, _name);
     });
 
     test('validation adaptée au pays sélectionné', () {
@@ -454,7 +460,7 @@ void main() {
 
       expect(find.text('Autres vues de l\'article'), findsOneWidget);
       expect(find.text('défilement auto'), findsOneWidget);
-      expect(find.text('12 500 F'), findsWidgets);
+      expect(find.text('6 500 F'), findsWidgets);
     });
   });
 }

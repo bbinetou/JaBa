@@ -73,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = AuthScope.of(context);
-    final onCodeStep = auth.phoneStep == PhoneStep.code;
+    final onCredentialsStep = auth.phoneStep == PhoneStep.number;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -99,13 +99,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         borderRadius: BorderRadius.circular(AppRadius.lg),
                         boxShadow: AppShadows.card,
                       ),
-                      child: onCodeStep
-                          ? _OtpStep(auth: auth)
-                          : _buildCredentialsStep(auth),
+                      child: switch (auth.phoneStep) {
+                        PhoneStep.code => _OtpStep(auth: auth),
+                        PhoneStep.name => _NameStep(auth: auth),
+                        PhoneStep.number => _buildCredentialsStep(auth),
+                      },
                     ),
                   ),
                 ),
-                if (!onCodeStep) ...[
+                if (onCredentialsStep) ...[
                   const SizedBox(height: 18),
                   FadeInUp(
                     delay: const Duration(milliseconds: 180),
@@ -775,6 +777,92 @@ class _OtpStepState extends State<_OtpStep> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Étape finale d'un nouveau compte téléphone : le nom, jamais collecté par
+/// le code SMS lui-même, mais nécessaire pour ne pas afficher un profil
+/// anonyme partout dans l'application.
+class _NameStep extends StatefulWidget {
+  const _NameStep({required this.auth});
+
+  final AuthController auth;
+
+  @override
+  State<_NameStep> createState() => _NameStepState();
+}
+
+class _NameStepState extends State<_NameStep> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+    await widget.auth.completePhoneSignup(_controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = widget.auth;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: const Icon(Icons.arrow_back, size: 20),
+              onPressed: auth.busy ? null : auth.backToPhoneNumber,
+              tooltip: 'Recommencer',
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Votre nom',
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Comment souhaitez-vous être identifié sur JaBa ?',
+          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.done,
+          onChanged: (_) => auth.clearError(),
+          onSubmitted: (_) => _submit(),
+          decoration: const InputDecoration(
+            labelText: 'Nom et prénom',
+            hintText: 'Aïda Diallo',
+            prefixIcon: Icon(Icons.person_outline, size: 18),
+          ),
+        ),
+        if (auth.error != null) ...[
+          const SizedBox(height: 12),
+          ErrorBanner(message: auth.error!),
+        ],
+        const SizedBox(height: 18),
+        _SubmitButton(
+          label: 'Continuer',
+          icon: Icons.check_circle_outline,
+          busy: auth.busy,
+          onPressed: _submit,
+        ),
+      ],
     );
   }
 }

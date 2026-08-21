@@ -13,8 +13,9 @@ import 'local_store.dart';
 /// Aucun compte n'est pré-enregistré.
 enum AuthStatus { checking, signedOut, signedIn }
 
-/// Étapes du parcours téléphone : saisie du numéro puis saisie du code.
-enum PhoneStep { number, code }
+/// Étapes du parcours téléphone : numéro, code, puis nom pour un nouveau
+/// compte (un compte existant saute directement à la connexion).
+enum PhoneStep { number, code, name }
 
 /// Empreinte du mot de passe : jamais stocké en clair sur l'appareil.
 String _hashPassword(String password) =>
@@ -325,26 +326,46 @@ class AuthController extends ChangeNotifier {
       return _fail('Code incorrect — $remainingOtpAttempts essai(s) restant(s)');
     }
 
-    // Un numéro déjà rattaché à un compte le rouvre ; sinon, le parcours
-    // téléphone crée un profil à la volée et l'enregistre pour la prochaine
-    // connexion.
+    // Un numéro déjà rattaché à un compte le rouvre directement ; un numéro
+    // inconnu demande d'abord le nom, avant de créer le compte.
     final phoneKey = _phoneKey(_pendingPhone!);
     final existing = _accounts[phoneKey];
-    final UserProfile profile;
     if (existing != null) {
-      profile = existing.profile;
-    } else {
-      profile = _createProfile(
-        name: 'Nouveau membre',
-        phone: formatPhone(_pendingPhone!, _pendingCountry),
-      );
-      _accounts[phoneKey] = _Account(
-        passwordHash: '',
-        phone: _pendingPhone!,
-        profile: profile,
-      );
-      await _persistAccounts();
+      _currentAccountKey = phoneKey;
+      _resetPhoneFlow();
+      return _succeed(existing.profile);
     }
+
+    _busy = false;
+    _error = null;
+    _phoneStep = PhoneStep.name;
+    notifyListeners();
+    return true;
+  }
+
+  /// Finalise l'inscription par téléphone une fois le nom renseigné.
+  Future<bool> completePhoneSignup(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.length < 3) {
+      _error = 'Entrez votre nom';
+      notifyListeners();
+      return false;
+    }
+
+    _begin();
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+
+    final phoneKey = _phoneKey(_pendingPhone!);
+    final profile = _createProfile(
+      name: trimmed,
+      phone: formatPhone(_pendingPhone!, _pendingCountry),
+    );
+    _accounts[phoneKey] = _Account(
+      passwordHash: '',
+      phone: _pendingPhone!,
+      profile: profile,
+    );
+    await _persistAccounts();
 
     _currentAccountKey = phoneKey;
     _resetPhoneFlow();

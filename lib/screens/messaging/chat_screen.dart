@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../../data/app_state.dart';
 import '../../data/whatsapp_link.dart';
@@ -264,7 +265,7 @@ class _ChatScreenState extends State<ChatScreen> {
         actions: [
           if ((conversation.otherUser.phone ?? '').isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.call_outlined),
+              icon: const FaIcon(FontAwesomeIcons.whatsapp, color: Color(0xFF25D366)),
               tooltip: 'Continuer sur WhatsApp',
               onPressed: () => openWhatsApp(
                 conversation.otherUser.phone!,

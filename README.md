@@ -59,13 +59,19 @@ ou directement sur le feed.
 2. Un code à 6 chiffres est généré et affiché dans une notification
    imitant un SMS entrant (il n'y a pas de vraie passerelle SMS).
 3. Saisis ce code sur l'écran suivant.
+4. **Numéro jamais utilisé** : une étape supplémentaire demande le nom —
+   c'est lui qui s'affichera ensuite partout dans l'app (fiche profil,
+   annonces publiées), plus de « Nouveau membre » générique.
 
 **À vérifier** :
 - Un code erroné décrémente le compteur d'essais (3 max), affiché à
   l'écran ; au bout de 3 échecs le parcours revient à la saisie du numéro.
 - Le code expire au bout de 5 minutes (`AuthController.otpValidity`).
-- Un numéro déjà utilisé pour un compte le reconnecte sur le même profil ;
-  un numéro inconnu crée un nouveau profil (« Nouveau membre »).
+- Un numéro déjà utilisé pour un compte le reconnecte directement sur le
+  même profil (pas d'étape nom) ; un numéro inconnu demande le nom avant de
+  créer le compte et d'entrer dans l'app.
+- Le nom saisi apparaît bien dans Profil (en haut, à la place du nom
+  complet on affiche le tien).
 
 ## 4. Parcours de test — publication d'une annonce
 
@@ -116,22 +122,33 @@ en haut de la barre d'action, au-dessus de « Faire une offre » / « Contacter 
 avec le message « 🛒 Achat validé » et la réponse du vendeur.
 
 ### 5.2 Chat
+- **La messagerie ne contient que ce qui te concerne** : un compte tout
+  juste créé a un onglet Messages vide (plus de conversations de
+  démonstration pré-remplies) — une conversation n'apparaît que lorsque tu
+  contactes, fais une offre, ou achètes une annonce. Les annonces que tu
+  publies toi-même n'ajoutent pas de conversation tant que personne ne t'a
+  contacté à leur sujet.
 - Envoyer un message déclenche une réponse simulée du vendeur après ~2 s
   (indicateur « en train d'écrire… »).
-- Icône téléphone dans la barre du chat (visible si le vendeur a un numéro,
-  ce qui est le cas pour tous les vendeurs de démonstration) → ouvre
+- Icône **WhatsApp** (verte) dans la barre du chat, visible si le vendeur a
+  un numéro (le cas pour tous les vendeurs de démonstration) → ouvre
   WhatsApp avec un message pré-rempli, pour poursuivre la conversation hors
   de l'app.
 - Les noms affichés (fiche annonce, en-tête du chat, liste des
   conversations) sont anonymisés : prénom + initiale (ex. « Fatou N. »),
   jamais le nom complet.
 
+### 5.3 Favoris
+Cœur sur une annonce (feed, favoris, ou fiche détaillée) → un bandeau de
+confirmation ("Ajouté à vos favoris" / "Retiré de vos favoris") apparaît en
+bas de l'écran et se referme tout seul après 2-3 secondes.
+
 ## 6. Autres points rapides à parcourir
 
 - **Recherche/filtres** (accueil) : la recherche filtre au fil de la
   frappe ; les filtres (prix, état, distance, tri) se cumulent.
-- **Favoris** : cœur sur une annonce → apparaît dans l'onglet Favoris,
-  survit à un redémarrage.
+- **Favoris** : apparaît dans l'onglet Favoris, survit à un redémarrage
+  (voir §5.3 pour la confirmation à l'ajout).
 
 ## 7. Lancer les tests automatisés
 
